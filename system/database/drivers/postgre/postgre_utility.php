@@ -131,7 +131,6 @@ class CI_DB_postgre_utility extends CI_DB_utility {
 				$output .= "ALTER TABLE ".$foreign_key['table_name']." DROP CONSTRAINT ".$foreign_key['constraint_name']." CASCADE;".$newline;
 				$add_foreign_key .= "ALTER TABLE ".$foreign_key['table_name']." ADD CONSTRAINT ".$foreign_key['constraint_name']." FOREIGN KEY (".$foreign_key['column_name'].") REFERENCES ".$foreign_key['references_table']." (".$foreign_key['references_field'].");".$newline;
 			}
-
 		}
 
 		// Drop + create type
@@ -215,13 +214,17 @@ class CI_DB_postgre_utility extends CI_DB_utility {
 					case 'bool':
 						$result->type = 'BOOLEAN';
 						break;
+					case 'numeric':
+						$length = $this->_check_length($table, $result->name, $result->type);
+						$result->type = "NUMERIC(".$length['numeric_precision'].",".$length['numeric_scale'].")";
+						break;
 					case 'varchar':
-						$max_length = $this->_check_maxlength($table, $result->name);
-						$result->type = 'VARCHAR('.$max_length.')';
+						$length = $this->_check_length($table, $result->name, $result->type);
+						$result->type = "VARCHAR(".$length['character_maximum_length'].")";
 						break;
 					case 'bpchar':
-						$max_length = $this->_check_maxlength($table, $result->name);
-						$result->type = 'CHAR('.$max_length.')';
+						$length = $this->_check_length($table, $result->name, $result->type);
+						$result->type = "CHAR(".$length['character_maximum_length'].")";
 						break;
 					case 'text':
 						$result->type = 'TEXT';
@@ -294,12 +297,11 @@ class CI_DB_postgre_utility extends CI_DB_utility {
 
 				// Build the INSERT string
 				$insert_str .= $newline.'INSERT INTO '.$table.' ('.$field_str.') VALUES ('.$val_str.');';
-			}
-			
+			}	
 		}
 
 		$output .=  $add_sequences;
-		$output .= $insert_str;
+		$output .=  $insert_str;
 		$output .=  $add_foreign_key;
 		$output .=  $alter_sequence;
 		// returning output
@@ -323,10 +325,17 @@ class CI_DB_postgre_utility extends CI_DB_utility {
 		return (count($result) > 0) ? TRUE : FALSE;
 	}
 
-	function _check_maxlength($table,$field)
+	function _check_length($table,$field,$type)
 	{
-		$result = $this->db->query("SELECT character_maximum_length from INFORMATION_SCHEMA.COLUMNS where table_name='".$table."' AND column_name='".$field."' ")->row();
-		return $result->character_maximum_length;
+		if($type == 'bpchar' or $type == 'varchar') {
+				$select_data = 'character_maximum_length';
+		}
+		elseif($type == 'numeric'){
+			$select_data = 'numeric_precision,numeric_scale';
+		}
+		
+		$result = $this->db->query("SELECT $select_data from INFORMATION_SCHEMA.COLUMNS where table_name='".$table."' AND column_name='".$field."' ")->row_array();
+		return $result;
 	}
 
 	function _get_type()
